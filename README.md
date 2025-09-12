@@ -51,3 +51,9 @@ Rules:
 - Drop cron job
 - Table snapshot of database?
 - DROP TABLE IF EXISTS notification CASCADE;
+
+
+TODO:
+- Edit URL
+    - if brand go to /dashboard/brand
+    - if influencer go to /dashboard/influencer

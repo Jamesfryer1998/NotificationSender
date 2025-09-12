@@ -74,7 +74,7 @@ Campaign completed successfully.
 MESSAGE = """Hey! 
 We just launched our platform that connects brands and creators for collaborations - thought you might be interested. It's completely free to join!
 
-Takes 2 minutes to sign up: https://collablab.net
+Takes 2 minutes to sign up: https://www.collablab.net
 
 Let me know what you think!"""
 

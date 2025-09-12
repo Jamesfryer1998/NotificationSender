@@ -242,7 +242,7 @@ def send_notification_email(email, user_name, activity_count, has_applications=F
             html_content = render_template('generic_notification.html',
                                          user_name=user_name,
                                          message=message_text,
-                                         dashboard_url="https://collablab.net/dashboard")
+                                         dashboard_url="https://www.collablab.net/dashboard")
         
         msg = MIMEMultipart('alternative')
         msg['Subject'] = "New Activity on CollabLab"
