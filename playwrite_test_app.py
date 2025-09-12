@@ -84,7 +84,7 @@ with sync_playwright() as p:
     messages_sent_count = 0
     
     # Launch browser (set headless=False to see what's happening)
-    browser = p.chromium.launch(headless=False)
+    browser = p.chromium.launch(headless=True)
     page = browser.new_page()
     
     # Navigate to Instagram
