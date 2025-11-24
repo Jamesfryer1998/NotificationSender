@@ -244,6 +244,12 @@ def send_notification_email(email, user_name, activity_count, has_applications=F
                                          message=message_text,
                                          dashboard_url="https://www.collablab.net/dashboard")
         
+        print(f"SMTP Config Check:")
+        print(f"  Server: {MAIL_SERVER}")
+        print(f"  Port: {MAIL_PORT}")
+        print(f"  TLS: {MAIL_USE_TLS}")
+        print(f"  Username: {MAIL_USERNAME[:5]}***")  # Only show first 5 chars
+        
         msg = MIMEMultipart('alternative')
         msg['Subject'] = "New Activity on CollabLab"
         msg['From'] = MAIL_USERNAME
