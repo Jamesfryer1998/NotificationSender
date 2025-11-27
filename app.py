@@ -10,6 +10,7 @@ import psycopg2
 from psycopg2.extras import RealDictCursor
 from flask import Flask, render_template
 from dotenv import load_dotenv
+import resend
 
 load_dotenv()
 
@@ -23,7 +24,8 @@ MAIL_PORT = int(os.getenv('MAIL_PORT', 587))
 MAIL_USERNAME = os.getenv('MAIL_USERNAME')
 MAIL_PASSWORD = os.getenv('MAIL_PASSWORD')
 MAIL_USE_TLS = os.getenv('MAIL_USE_TLS', 'True').lower() == 'true'
-
+USE_GMAIL = os.getenv("USE_GMAIL", "true").lower() == "true"
+resend.api_key = os.getenv("RESEND_API_KEY")
 
 def get_db_connection():
     """Get database connection"""
@@ -225,66 +227,83 @@ def get_user_matches_for_notification(user_id):
     finally:
         conn.close()
 
-
 def send_notification_email(email, user_name, activity_count, has_applications=False, dry_run=False):
-    """Send notification email to user using the same SMTP logic as send_support_email()."""
-    
+    """Send notification email.
+       - If USE_GMAIL=true → use Gmail SMTP
+       - If USE_GMAIL=false → use Resend
+    """
+
     if dry_run:
-        print(f"DRY RUN: Would send email to {email} ({user_name}) - {activity_count} new activities")
+        print(f"DRY RUN: would send email → {email} ({user_name})")
         return True
-    
+
+    # Build message
+    if has_applications:
+        message_text = (
+            f"You have {activity_count} new application{'s' if activity_count > 1 else ''} "
+            "from influencers waiting for your review!"
+        )
+    else:
+        message_text = (
+            f"You have {activity_count} new match{'es' if activity_count > 1 else ''} "
+            "waiting for your attention!"
+        )
+
+    # Render email HTML
+    with app.app_context():
+        html_content = render_template(
+            "generic_notification.html",
+            user_name=user_name,
+            message=message_text,
+            dashboard_url="https://www.collablab.net/dashboard"
+        )
+
+    # ----------------------------------------------------------------------
+    #   OPTION 1 → GMAIL SMTP (if USE_GMAIL=true)
+    # ----------------------------------------------------------------------
+    if USE_GMAIL:
+        try:
+            smtp_server = "smtp.gmail.com"
+            port = 587
+            sender_email = "collablabofficial@gmail.com"
+            password = os.getenv("MAIL_PASSWORD", "")
+
+            msg = MIMEMultipart()
+            msg["Subject"] = "New Activity on CollabLab"
+            msg["From"] = sender_email
+            msg["To"] = email
+            msg.attach(MIMEText(html_content, "html"))
+
+            server = smtplib.SMTP(smtp_server, port)
+            server.starttls()
+            server.login(sender_email, password)
+            server.sendmail(sender_email, email, msg.as_string())
+            server.quit()
+
+            print(f"SMTP notification sent → {email}")
+            return True
+
+        except Exception as e:
+            print(f"SMTP email failure: {e}")
+            return False
+
+    # ----------------------------------------------------------------------
+    #   OPTION 2 → RESEND (if USE_GMAIL=false)
+    # ----------------------------------------------------------------------
     try:
-        # Build message text depending on type
-        if has_applications:
-            message_text = (
-                f"You have {activity_count} new application{'s' if activity_count > 1 else ''} "
-                f"from influencers waiting for your review!"
-            )
-        else:
-            message_text = (
-                f"You have {activity_count} new match{'es' if activity_count > 1 else ''} "
-                "waiting for your attention!"
-            )
-        
-        # Render email template
-        with app.app_context():
-            html_content = render_template(
-                "generic_notification.html",
-                user_name=user_name,
-                message=message_text,
-                dashboard_url="https://www.collablab.net/dashboard"
-            )
+        response = resend.Emails.send({
+            "from": MAIL_USERNAME,
+            "to": "jamesfryer1998@gmail.com",
+            "subject": "New Activity on CollabLab",
+            "html": html_content,
+        })
 
-        # --- Same as send_support_email() ---
-        smtp_server = "smtp.gmail.com"
-        port = 587
-        sender_email = "collablabofficial@gmail.com"
-        password = os.environ.get("MAIL_PASSWORD", "")
-
-        message = MIMEMultipart()
-        message["Subject"] = "New Activity on CollabLab"
-        message["From"] = sender_email
-        message["To"] = email
-
-        # Attach HTML body
-        message.attach(MIMEText(html_content, "html"))
-
-        # Connect + send
-        server = smtplib.SMTP(smtp_server, port)
-        server.starttls()
-        server.login(sender_email, password)
-        server.sendmail(sender_email, email, message.as_string())
-        server.quit()
-
-        print(f"Notification email sent successfully to {email}")
+        print(f"Resend notification sent → {email}")
+        print("Resend response:", response)
         return True
-    
+
     except Exception as e:
-        print(f"Error sending notification email to {email}: {str(e)}")
-        print(f"EMAIL FAILED — Dumping content for debugging:")
-        print(f"To: {email}")
-        print(f"Subject: New Activity on CollabLab")
-        print(f"HTML: {html_content}")
+        print(f"Resend email failure: {e}")
         return False
 
 
