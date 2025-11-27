@@ -10,8 +10,36 @@ import psycopg2
 from psycopg2.extras import RealDictCursor
 from flask import Flask, render_template
 from dotenv import load_dotenv
+import socket  # ADD THIS IMPORT
 
 load_dotenv()
+
+def test_smtp_connection():
+    """Test if we can reach Gmail's SMTP server"""
+    try:
+        mail_server = os.getenv('MAIL_SERVER', 'smtp.gmail.com')
+        mail_port = int(os.getenv('MAIL_PORT', 587))
+        
+        print(f"\nTesting SMTP connection to {mail_server}:{mail_port}...")
+        sock = socket.create_connection((mail_server, mail_port), timeout=10)
+        sock.close()
+        print("✓ SMTP connection test SUCCESSFUL - can reach Gmail")
+        return True
+    except socket.error as e:
+        print(f"✗ SMTP connection test FAILED: {e}")
+        print("Railway/Network is blocking outbound SMTP connections")
+        return False
+    except Exception as e:
+        print(f"✗ Unexpected error: {e}")
+        return False
+    
+print("\n=== SMTP Configuration Check ===")
+print(f"Server: {os.getenv('MAIL_SERVER', 'smtp.gmail.com')}")
+print(f"Port: {os.getenv('MAIL_PORT', 587)}")
+print(f"TLS: {os.getenv('MAIL_USE_TLS', 'true')}")
+print(f"Username: {os.getenv('MAIL_USERNAME', 'NOT SET')[:5]}***")
+test_smtp_connection()
+print("=================================\n")
 
 app = Flask(__name__)
 
