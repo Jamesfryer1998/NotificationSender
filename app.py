@@ -10,36 +10,8 @@ import psycopg2
 from psycopg2.extras import RealDictCursor
 from flask import Flask, render_template
 from dotenv import load_dotenv
-import socket  # ADD THIS IMPORT
 
 load_dotenv()
-
-def test_smtp_connection():
-    """Test if we can reach Gmail's SMTP server"""
-    try:
-        mail_server = os.getenv('MAIL_SERVER', 'smtp.gmail.com')
-        mail_port = int(os.getenv('MAIL_PORT', 587))
-        
-        print(f"\nTesting SMTP connection to {mail_server}:{mail_port}...")
-        sock = socket.create_connection((mail_server, mail_port), timeout=10)
-        sock.close()
-        print("✓ SMTP connection test SUCCESSFUL - can reach Gmail")
-        return True
-    except socket.error as e:
-        print(f"✗ SMTP connection test FAILED: {e}")
-        print("Railway/Network is blocking outbound SMTP connections")
-        return False
-    except Exception as e:
-        print(f"✗ Unexpected error: {e}")
-        return False
-    
-print("\n=== SMTP Configuration Check ===")
-print(f"Server: {os.getenv('MAIL_SERVER', 'smtp.gmail.com')}")
-print(f"Port: {os.getenv('MAIL_PORT', 587)}")
-print(f"TLS: {os.getenv('MAIL_USE_TLS', 'true')}")
-print(f"Username: {os.getenv('MAIL_USERNAME', 'NOT SET')[:5]}***")
-test_smtp_connection()
-print("=================================\n")
 
 app = Flask(__name__)
 
@@ -255,47 +227,64 @@ def get_user_matches_for_notification(user_id):
 
 
 def send_notification_email(email, user_name, activity_count, has_applications=False, dry_run=False):
-    """Send notification email to user"""
+    """Send notification email to user using the same SMTP logic as send_support_email()."""
+    
     if dry_run:
         print(f"DRY RUN: Would send email to {email} ({user_name}) - {activity_count} new activities")
         return True
     
     try:
+        # Build message text depending on type
         if has_applications:
-            message_text = f"You have {activity_count} new application{'s' if activity_count > 1 else ''} from influencers waiting for your review!"
+            message_text = (
+                f"You have {activity_count} new application{'s' if activity_count > 1 else ''} "
+                f"from influencers waiting for your review!"
+            )
         else:
-            message_text = f"You have {activity_count} new match{'es' if activity_count > 1 else ''} waiting for your attention!"
+            message_text = (
+                f"You have {activity_count} new match{'es' if activity_count > 1 else ''} "
+                "waiting for your attention!"
+            )
         
+        # Render email template
         with app.app_context():
-            html_content = render_template('generic_notification.html',
-                                         user_name=user_name,
-                                         message=message_text,
-                                         dashboard_url="https://www.collablab.net/dashboard")
-        
-        print(f"SMTP Config Check:")
-        print(f"  Server: {MAIL_SERVER}")
-        print(f"  Port: {MAIL_PORT}")
-        print(f"  TLS: {MAIL_USE_TLS}")
-        print(f"  Username: {MAIL_USERNAME[:5]}***")  # Only show first 5 chars
-        
-        msg = MIMEMultipart('alternative')
-        msg['Subject'] = "New Activity on CollabLab"
-        msg['From'] = MAIL_USERNAME
-        msg['To'] = email
-        
-        html_part = MIMEText(html_content, 'html')
-        msg.attach(html_part)
-        
-        server = smtplib.SMTP(MAIL_SERVER, MAIL_PORT)
-        if MAIL_USE_TLS:
-            server.starttls()
-        server.login(MAIL_USERNAME, MAIL_PASSWORD)
-        server.send_message(msg)
+            html_content = render_template(
+                "generic_notification.html",
+                user_name=user_name,
+                message=message_text,
+                dashboard_url="https://www.collablab.net/dashboard"
+            )
+
+        # --- Same as send_support_email() ---
+        smtp_server = "smtp.gmail.com"
+        port = 587
+        sender_email = "collablabofficial@gmail.com"
+        password = os.environ.get("MAIL_PASSWORD", "")
+
+        message = MIMEMultipart()
+        message["Subject"] = "New Activity on CollabLab"
+        message["From"] = sender_email
+        message["To"] = email
+
+        # Attach HTML body
+        message.attach(MIMEText(html_content, "html"))
+
+        # Connect + send
+        server = smtplib.SMTP(smtp_server, port)
+        server.starttls()
+        server.login(sender_email, password)
+        server.sendmail(sender_email, email, message.as_string())
         server.quit()
-        
+
+        print(f"Notification email sent successfully to {email}")
         return True
+    
     except Exception as e:
-        print(f"Error sending email to {email}: {str(e)}")
+        print(f"Error sending notification email to {email}: {str(e)}")
+        print(f"EMAIL FAILED — Dumping content for debugging:")
+        print(f"To: {email}")
+        print(f"Subject: New Activity on CollabLab")
+        print(f"HTML: {html_content}")
         return False
 
 
